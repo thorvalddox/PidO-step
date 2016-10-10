@@ -8,18 +8,20 @@ class Handle():
         self.timestep = time/steps
         self.endtime = time
         self.discount = discount
-        self.p = (discount-sigma**2/2)/(2*sigma) * sqrt(self.timestep) + 0.5
+        self.p = (discount-sigma**2/2)/(2*sigma) * sqrt(self.timestep) + 0.5 # 1.32
         self.coststep = sigma*sqrt(self.timestep)
         self.target = target
         self.barrier = barrier
         self.sell = sell
         self.buy = not self.sell
-    def V(self,value=0,step_index=0):
+        self.Vdict = {} #stores inbetween V values for optimalisation
+    def V(self,value_index=0,step_index=0):
         """
             A function that generates the value of an option,
-            value: the current value of the stock -the value the stock has on time zero
+            value_index: the current value of the stock = value_index * self.coststep + the value the stock has on time zero
             step_index: The current step, time=step_index*self.timestep
         """
+        value = value_index*self.coststep
         if value > self.barrier:
             return 0
         elif step_index == self.steps:
@@ -27,13 +29,17 @@ class Handle():
                 return max(0, value - self.target)
             else:
                 return min(0, value - self.target)
+        elif (value_index,step_index) in self.Vdict:
+             return self.Vdict[value_index,step_index]
         else:
-            return self.V(value+self.coststep,step_index + 1)*self.p + \
-                   self.V(value-self.coststep,step_index + 1)*(1-self.p)
+            ret = self.V(value_index+1,step_index + 1)*self.p + \
+                    self.V(value_index-1,step_index + 1)*(1-self.p)
+            self.Vdict[value_index,step_index] = ret
+            return ret
 
     def draw_tree(self):
         for i in range(-self.steps,self.steps+1):
-            print("    "*abs(i) + "  ".join("{:+06.2f}".format(self.V(-i*self.coststep,s)) \
+            print("    "*abs(i) + "  ".join("{:+06.2f}".format(self.V(-i,s)) \
                                             for s in range(abs(i),self.steps+1,2)))
 
 
@@ -58,11 +64,12 @@ def get_number(text,default=0,type_=float):
 
 if __name__ == "__main__":
     h = Handle(get_number("time"),
-               get_number("steps",10,int),
+               get_number("steps",20,int),
                get_number("discount",0.05),
                get_number("sigma"),
                get_number("target - current stock price"),
-               get_number("barrier",float("inf")))
+               get_number("barrier",float("inf")),
+               input("sell y/n: ")[0].lower()=="y")
     print("the change to go up is: ",h.p)
     print("the price of an option is:",h.V())
     h.draw_tree()
