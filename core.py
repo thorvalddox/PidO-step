@@ -15,13 +15,14 @@ class Handle():
         self.volatility = volatility
         self.p = (interest - volatility ** 2 / 2) / (2 * volatility) * sqrt(self.timestep) + 0.5 # course notes (1.32)
         self.coststep = volatility * sqrt(self.timestep)
-        self.target = target
+        self.strike = target
         self.current = current_stock_price
         self.top = barrier_top
         self.bottom = barrier_bottom
         self.call = call
         self.american = american
         self.Vdict = {} #stores inbetween V values for optimalisation
+        self.single_step_discount = exp(-interest*self.timestep)
     @property
     def european(self):
         return not self.american
@@ -44,8 +45,9 @@ class Handle():
         elif (x_index, step_index) in self.Vdict:
              return self.Vdict[x_index, step_index]
         else:
-            ret = self.V(x_index + 1, step_index + 1) * self.p + \
-                  self.V(x_index - 1, step_index + 1) * (1 - self.p)
+            ret = self.single_step_discount * \
+                  (self.V(x_index + 1, step_index + 1) * self.p + \
+                  self.V(x_index - 1, step_index + 1) * (1 - self.p))
             if self.american:
                 #option can be exchanged immediatly
                 ret = max(ret,self.exchange_value(value))
@@ -61,11 +63,11 @@ class Handle():
             if the stock value is equal to stockvalue
         """
         if self.call:
-            return max(0, stockvalue - self.target)
+            return max(0, stockvalue - self.strike)
         else:
-            return max(0, self.target - stockvalue)
-    def change_target(self,newtarget):
-        self.target = newtarget
+            return max(0, self.strike - stockvalue)
+    def change_strike(self, newtarget):
+        self.strike = newtarget
         self.reset_V()
 
     def swap_cp(self):
@@ -75,13 +77,13 @@ class Handle():
         self.american = not self.american
 
     def draw_tree(self,target):
-        self.change_target(target)
+        self.change_strike(target)
 
         for i in range(-self.steps,self.steps+1):
             print("    "*abs(i) + "  ".join("{:+06.2f}".format(self.V(-i,s)) \
                                             for s in range(abs(i),self.steps+1,2)))
     def get_price(self,target):
-        self.change_target(target)
+        self.change_strike(target)
         return self.V(0,0)
 
 
@@ -160,15 +162,15 @@ def ex_a():
                get_number("steps",20,int),
                get_number("interest",0.05),
                get_number("volatility",0.3),
-               get_number("current stock value",1),
-               get_number("target",1),
-               get_number("upper_barrier",float("inf")),
-               get_number("lower_barrier", float("-inf")),
+               get_number("current stock price",1),
+               get_number("strike price",1),
+               get_number("barrier: up and out",float("inf")),
+               get_number("barrier: down and out", float("-inf")),
                get_bool("call/put","cp"),
                get_bool("american/european", "ae"))
     print("the change to go up is: ",h.p)
     print("the price of an option is:",h.V())
-    h.draw_tree(h.target)
+    h.draw_tree(h.strike)
 
 
 
@@ -183,6 +185,20 @@ def ex_b():
 
 
 if __name__=="__main__":
+    print("""Welcome to my solution to the asignment of path integrals in quantum mechanics
+    If you select \'a\', The program will let you plug in a set of parameters and
+    calculate the correct option price. If you select \'b\', It will generate a
+    bunch of graphs representing the different situations. These are saved in the
+    same folder as this program runs in. The bonus question is included in both
+    the parameter program and the graphs.
+
+    Inputting parameters work as follows:
+    if you get something like: option (x/y): you have to type x or y
+    if you get something like: value (1.5): you have to give a numerical value
+    If you give an invalid value or leave it empty, the default value between the
+    parentheses will be used. This also supports 'inf' and '-inf'""")
+
+
     if get_bool("assigment","ab"):
         ex_a()
     else:
